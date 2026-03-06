@@ -185,7 +185,7 @@
 <body>
   <div class="wrap">
     <h1>Higher Ed Prompt Builder (Deterministic)</h1>
-    <p class="sub">Pick options; paste minimal details; copy the compiled prompt into your AI chat.</p>
+    <p class="sub">Options load from your Google Sheet CSV; the prompt compiler is deterministic.</p>
 
     <div class="grid">
       <section class="card">
@@ -194,84 +194,43 @@
         <div class="row">
           <div>
             <label for="taskType">Task type</label>
-            <select id="taskType">
-              <option value="email">Email draft</option>
-              <option value="meeting_summary">Meeting summary</option>
-              <option value="action_items">Action items tracker</option>
-              <option value="policy_summary">Policy summary</option>
-              <option value="process_checklist">Process checklist</option>
-              <option value="faq_entry">FAQ entry</option>
-            </select>
+            <select id="taskType"></select>
           </div>
 
           <div>
             <label for="audience">Audience</label>
-            <select id="audience">
-              <option value="faculty">Faculty</option>
-              <option value="students">Students</option>
-              <option value="staff">Staff</option>
-              <option value="leadership">Leadership</option>
-              <option value="external">External partner</option>
-            </select>
+            <select id="audience"></select>
           </div>
         </div>
 
         <div class="row">
           <div>
             <label for="tone">Tone</label>
-            <select id="tone">
-              <option value="neutral_professional">Neutral professional</option>
-              <option value="formal">Formal</option>
-              <option value="friendly_professional">Friendly professional</option>
-              <option value="direct_concise">Direct concise</option>
-            </select>
+            <select id="tone"></select>
           </div>
 
           <div>
             <label for="length">Length</label>
-            <select id="length">
-              <option value="short">Short</option>
-              <option value="medium" selected>Medium</option>
-              <option value="detailed">Detailed</option>
-            </select>
+            <select id="length"></select>
           </div>
         </div>
 
         <div class="row">
           <div>
             <label for="outputFormat">Output format</label>
-            <select id="outputFormat">
-              <option value="auto" selected>Auto based on task</option>
-              <option value="bullets">Bullet list</option>
-              <option value="numbered_steps">Numbered steps</option>
-              <option value="email_with_subject">Email with subject line</option>
-              <option value="exec_summary_actions">Executive summary plus actions</option>
-              <option value="checklist_owners_deadlines">Checklist with owners and deadlines</option>
-            </select>
+            <select id="outputFormat"></select>
           </div>
 
           <div>
             <label for="systems">Systems context (Ctrl or Cmd for multi-select)</label>
-            <select id="systems" multiple size="4">
-              <option value="Canvas">Canvas</option>
-              <option value="Slate">Slate</option>
-              <option value="Banner">Banner</option>
-              <option value="PeopleSoft">PeopleSoft</option>
-              <option value="Google Workspace">Google Workspace</option>
-              <option value="Microsoft 365">Microsoft 365</option>
-              <option value="Panopto">Panopto</option>
-            </select>
-            <div class="hint">Optional; selects appear in the compiled context line.</div>
+            <select id="systems" multiple size="4"></select>
+            <div class="hint">Optional; selected systems appear in the compiled context line.</div>
           </div>
         </div>
 
         <div>
           <label>Sensitivity constraints</label>
-          <div class="pillbox">
-            <label class="pill"><input type="checkbox" id="ferpa" /> FERPA sensitive</label>
-            <label class="pill"><input type="checkbox" id="security" /> Security sensitive</label>
-            <label class="pill"><input type="checkbox" id="hr" /> HR sensitive</label>
-          </div>
+          <div class="pillbox" id="sensitivityBox"></div>
         </div>
 
         <div style="height:10px"></div>
@@ -290,7 +249,7 @@
         <div class="row">
           <div class="small">
             <label for="keyDetails">Key details (minimal)</label>
-            <textarea id="keyDetails" placeholder="Include dates, names, links, constraints, required sections, and any must-include points."></textarea>
+            <textarea id="keyDetails" placeholder="Include dates, names, links, constraints, required sections, and must-include points."></textarea>
           </div>
           <div class="small">
             <label for="doNotInclude">Do not include (optional)</label>
@@ -324,71 +283,46 @@
   <script>
     const el = (id) => document.getElementById(id);
 
+    const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSGMnFC9Zy6CVS6HgN_ye7Fm_cpvobSY5bGeYlmiWpEoWGzLGIrWCbo3PtLEE-kCAjp3ov_QwKjhAqA/pub?gid=0&single=true&output=csv";
+
+    const DEFAULTS = {
+      taskType: "email",
+      audience: "faculty",
+      tone: "neutral_professional",
+      length: "medium",
+      outputFormat: "auto"
+    };
+
     const TASK_TEMPLATES = {
       email: {
         taskLabel: "Draft an email",
         defaultOutput: "email_with_subject",
-        schema: [
-          "Subject line",
-          "Greeting",
-          "Body: 2 short paragraphs",
-          "Bullet next steps",
-          "Closing"
-        ]
+        schema: ["Subject line","Greeting","Body: 2 short paragraphs","Bullet next steps","Closing"]
       },
       meeting_summary: {
         taskLabel: "Summarize a meeting",
         defaultOutput: "exec_summary_actions",
-        schema: [
-          "Summary: 3 to 5 sentences",
-          "Decisions",
-          "Action items with owner and deadline",
-          "Open questions"
-        ]
+        schema: ["Summary: 3 to 5 sentences","Decisions","Action items with owner and deadline","Open questions"]
       },
       action_items: {
         taskLabel: "Extract and structure action items",
         defaultOutput: "checklist_owners_deadlines",
-        schema: [
-          "Action item",
-          "Owner",
-          "Deadline",
-          "Dependencies",
-          "Status assumptions clearly labeled"
-        ]
+        schema: ["Action item","Owner","Deadline","Dependencies","Status assumptions clearly labeled"]
       },
       policy_summary: {
         taskLabel: "Summarize a policy",
         defaultOutput: "bullets",
-        schema: [
-          "Purpose",
-          "Who it applies to",
-          "Key requirements",
-          "What changes operationally",
-          "Risks and compliance notes",
-          "Recommended next steps"
-        ]
+        schema: ["Purpose","Who it applies to","Key requirements","What changes operationally","Risks and compliance notes","Recommended next steps"]
       },
       process_checklist: {
         taskLabel: "Create an operational checklist",
         defaultOutput: "numbered_steps",
-        schema: [
-          "Prerequisites",
-          "Step-by-step procedure",
-          "Validation checks",
-          "Escalation path",
-          "Artifacts to produce"
-        ]
+        schema: ["Prerequisites","Step-by-step procedure","Validation checks","Escalation path","Artifacts to produce"]
       },
       faq_entry: {
         taskLabel: "Write an FAQ entry",
         defaultOutput: "bullets",
-        schema: [
-          "Question",
-          "Short answer",
-          "Details",
-          "Where to go for help"
-        ]
+        schema: ["Question","Short answer","Details","Where to go for help"]
       }
     };
 
@@ -405,7 +339,7 @@
       detailed: "Be thorough; include edge cases and operational checks."
     };
 
-    const OUTPUT_MAP = {
+    const OUTPUT_NOTE = {
       auto: "Use the default schema for the selected task type.",
       bullets: "Use bullet points; group by headings.",
       numbered_steps: "Use numbered steps; include prerequisites and validation.",
@@ -414,8 +348,137 @@
       checklist_owners_deadlines: "Provide a checklist with owner and deadline fields."
     };
 
+    function csvParseLine(line) {
+      const out = [];
+      let cur = "";
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          const next = line[i + 1];
+          if (inQuotes && next === '"') {
+            cur += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (ch === "," && !inQuotes) {
+          out.push(cur);
+          cur = "";
+        } else {
+          cur += ch;
+        }
+      }
+      out.push(cur);
+      return out;
+    }
+
+    function csvToObjects(csvText) {
+      const lines = csvText.replace(/\r/g, "").split("\n").filter(l => l.trim().length);
+      if (!lines.length) return [];
+      const headers = csvParseLine(lines[0]).map(h => h.trim());
+      const rows = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = csvParseLine(lines[i]);
+        const obj = {};
+        headers.forEach((h, idx) => obj[h] = (cols[idx] ?? "").trim());
+        rows.push(obj);
+      }
+      return rows;
+    }
+
     function selectedOptions(selectEl){
       return Array.from(selectEl.selectedOptions).map(o => o.value);
+    }
+
+    function renderSelectOptions(selectId, items, defaultValue) {
+      const s = el(selectId);
+      if (!s) return;
+
+      const isMulti = !!s.multiple;
+      s.innerHTML = "";
+
+      items
+        .slice()
+        .sort((a,b)=> Number(a.order || 0) - Number(b.order || 0))
+        .forEach(item => {
+          const opt = document.createElement("option");
+          opt.value = item.value;
+          opt.textContent = item.label || item.value;
+          if (!isMulti && defaultValue && item.value === defaultValue) opt.selected = true;
+          s.appendChild(opt);
+        });
+    }
+
+    function renderSensitivityCheckboxes(items) {
+      const box = el("sensitivityBox");
+      box.innerHTML = "";
+
+      items
+        .slice()
+        .sort((a,b)=> Number(a.order || 0) - Number(b.order || 0))
+        .forEach(item => {
+          const id = item.value;
+          const label = item.label || item.value;
+
+          const wrap = document.createElement("label");
+          wrap.className = "pill";
+
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.id = id;
+
+          const txt = document.createElement("span");
+          txt.textContent = label;
+
+          wrap.appendChild(cb);
+          wrap.appendChild(txt);
+          box.appendChild(wrap);
+
+          cb.addEventListener("input", update);
+        });
+    }
+
+    async function loadOptionsFromSheet() {
+      const res = await fetch(SHEET_CSV_URL, { cache: "no-store" });
+      if (!res.ok) throw new Error("Failed to fetch sheet CSV");
+      const csv = await res.text();
+      const rows = csvToObjects(csv);
+
+      const active = rows.filter(r => String(r.active).toUpperCase() === "TRUE");
+
+      const byCat = {};
+      active.forEach(r => {
+        const cat = r.category;
+        if (!byCat[cat]) byCat[cat] = [];
+        byCat[cat].push(r);
+      });
+
+      renderSelectOptions("taskType", byCat.taskType || [], DEFAULTS.taskType);
+      renderSelectOptions("audience", byCat.audience || [], DEFAULTS.audience);
+      renderSelectOptions("tone", byCat.tone || [], DEFAULTS.tone);
+      renderSelectOptions("length", byCat.length || [], DEFAULTS.length);
+      renderSelectOptions("outputFormat", byCat.outputFormat || [], DEFAULTS.outputFormat);
+      renderSelectOptions("systems", byCat.systems || [], null);
+
+      renderSensitivityCheckboxes(byCat.sensitivity || []);
+
+      // Ensure the reset button works even if sheet removes values
+      safeSetSelectValue("taskType", DEFAULTS.taskType);
+      safeSetSelectValue("audience", DEFAULTS.audience);
+      safeSetSelectValue("tone", DEFAULTS.tone);
+      safeSetSelectValue("length", DEFAULTS.length);
+      safeSetSelectValue("outputFormat", DEFAULTS.outputFormat);
+
+      wireInputs();
+      update();
+    }
+
+    function safeSetSelectValue(id, value) {
+      const s = el(id);
+      if (!s) return;
+      const exists = Array.from(s.options).some(o => o.value === value);
+      if (exists) s.value = value;
     }
 
     function buildConstraints(){
@@ -424,18 +487,23 @@
       const tone = el("tone").value;
       const length = el("length").value;
 
-      constraints.push(`Tone: ${TONE_MAP[tone]}`);
+      constraints.push(`Tone: ${TONE_MAP[tone] || tone}`);
       constraints.push(`Audience: ${audience}. Use terminology appropriate for that audience.`);
-      constraints.push(`Length: ${LENGTH_MAP[length]}`);
+      constraints.push(`Length: ${LENGTH_MAP[length] || length}`);
       constraints.push("Avoid speculation; rely only on provided inputs. If something is missing, ask targeted questions at the end.");
 
-      if (el("ferpa").checked){
+      // Sensitivity checkboxes are dynamic; ids are values like ferpa, security, hr
+      const ferpa = document.getElementById("ferpa");
+      const security = document.getElementById("security");
+      const hr = document.getElementById("hr");
+
+      if (ferpa && ferpa.checked){
         constraints.push("FERPA: Do not request, include, or infer student PII. Use anonymized placeholders if needed.");
       }
-      if (el("security").checked){
+      if (security && security.checked){
         constraints.push("Security: Do not include sensitive security details. Provide safe, general guidance only.");
       }
-      if (el("hr").checked){
+      if (hr && hr.checked){
         constraints.push("HR: Avoid personal data and subjective judgments; use neutral, policy-aligned language.");
       }
 
@@ -451,21 +519,21 @@
 
       if (chosen === "auto"){
         return {
-          mode: t.defaultOutput,
-          note: OUTPUT_MAP["auto"],
-          schema: t.schema
+          mode: t?.defaultOutput || "auto",
+          note: OUTPUT_NOTE.auto,
+          schema: t?.schema || []
         };
       }
       return {
         mode: chosen,
-        note: OUTPUT_MAP[chosen] || "Use the selected format.",
-        schema: t.schema
+        note: OUTPUT_NOTE[chosen] || "Use the selected format.",
+        schema: t?.schema || []
       };
     }
 
     function compilePrompt(){
       const taskKey = el("taskType").value;
-      const t = TASK_TEMPLATES[taskKey];
+      const t = TASK_TEMPLATES[taskKey] || { taskLabel: "Complete the requested administrative task", defaultOutput: "auto", schema: [] };
 
       const institution = el("institution").value.trim();
       const goal = el("goal").value.trim();
@@ -495,8 +563,10 @@
 
       const outLines = [];
       outLines.push(`Format directive:\n- ${out.note}`);
-      outLines.push("Output structure:");
-      (out.schema || []).forEach(s => outLines.push(`- ${s}`));
+      if (out.schema.length){
+        outLines.push("Output structure:");
+        out.schema.forEach(s => outLines.push(`- ${s}`));
+      }
       sections.push(outLines.join("\n"));
 
       sections.push("Quality criteria:\n- Clear, actionable language.\n- Organized for operational use.\n- Use concrete dates, names, and links when provided.");
@@ -506,7 +576,6 @@
 
     function renderChecks(){
       const checks = [];
-      const taskKey = el("taskType").value;
       const goal = el("goal").value.trim();
       const keyDetails = el("keyDetails").value.trim();
       const sourceText = el("sourceText").value.trim();
@@ -519,12 +588,9 @@
       checks.push({ ok: goalOk, msg: "Goal provided (recommended)." });
       checks.push({ ok: inputsOk, msg: "Some input material provided (key details or source text)." });
 
-      if (taskKey === "email" && el("outputFormat").value === "bullets"){
-        checks.push({ ok: false, msg: "Email task usually benefits from email format; consider Email with subject line." });
-      }
-
       const container = el("checks");
-      container.innerHTML = "<div style='font-size:12px;color:var(--muted);margin-bottom:6px;'>Prompt quality checks</div>" +
+      container.innerHTML =
+        "<div style='font-size:12px;color:var(--muted);margin-bottom:6px;'>Prompt quality checks</div>" +
         checks.map(c => {
           const cls = c.ok ? "ok" : "bad";
           return `<div class="checkline"><span class="dot ${cls}"></span><span>${c.msg}</span></div>`;
@@ -568,35 +634,52 @@
     }
 
     function resetAll(){
-      el("taskType").value = "email";
-      el("audience").value = "faculty";
-      el("tone").value = "neutral_professional";
-      el("length").value = "medium";
-      el("outputFormat").value = "auto";
+      safeSetSelectValue("taskType", DEFAULTS.taskType);
+      safeSetSelectValue("audience", DEFAULTS.audience);
+      safeSetSelectValue("tone", DEFAULTS.tone);
+      safeSetSelectValue("length", DEFAULTS.length);
+      safeSetSelectValue("outputFormat", DEFAULTS.outputFormat);
+
       Array.from(el("systems").options).forEach(o => o.selected = false);
-      el("ferpa").checked = false;
-      el("security").checked = false;
-      el("hr").checked = false;
+
+      ["ferpa","security","hr"].forEach(id => {
+        const cb = document.getElementById(id);
+        if (cb) cb.checked = false;
+      });
+
       el("goal").value = "";
       el("institution").value = "";
       el("keyDetails").value = "";
       el("doNotInclude").value = "";
       el("sourceText").value = "";
+
       update();
       const status = el("status");
       status.className = "status";
       status.textContent = "";
     }
 
-    // Wire events
-    ["taskType","audience","tone","length","outputFormat","systems","ferpa","security","hr","goal","institution","keyDetails","doNotInclude","sourceText"]
-      .forEach(id => el(id).addEventListener("input", update));
+    function wireInputs() {
+      const ids = ["taskType","audience","tone","length","outputFormat","systems","goal","institution","keyDetails","doNotInclude","sourceText"];
+      ids.forEach(id => {
+        const node = el(id);
+        if (node) node.addEventListener("input", update);
+      });
 
-    el("copyBtn").addEventListener("click", copyToClipboard);
-    el("resetBtn").addEventListener("click", resetAll);
+      el("copyBtn").addEventListener("click", copyToClipboard);
+      el("resetBtn").addEventListener("click", resetAll);
+    }
 
-    // Initial render
-    update();
+    document.addEventListener("DOMContentLoaded", async () => {
+      try {
+        await loadOptionsFromSheet();
+      } catch (err) {
+        el("status").className = "status bad";
+        el("status").textContent = "Failed to load Google Sheet options. Check that the sheet is published and the CSV URL is correct.";
+        wireInputs();
+        update();
+      }
+    });
   </script>
 </body>
 </html>
